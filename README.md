@@ -2,6 +2,7 @@ Logstash exporter
 =================
 
 Prometheus exporter for metrics provided by Node Stats API of Logstash.
+> Pull requests to https://github.com/alxrem/prometheus-logstash-exporter
 
 Building and running
 --------------------
@@ -12,18 +13,11 @@ Building and running
     ./prometheus-logstash-exporter <flags>
 
 To see all available configuration flags:
-
-    ./prometheus-logstash-exporter -h
-    
-Packages
---------
-
-Binary builds are available on the [releases page of Gitlab project](https://gitlab.com/alxrem/prometheus-logstash-exporter/-/releases).
-
-Packages for latest Debian and Ubuntu releases are available on
-[PackageCloud](https://packagecloud.io/alxrem/prometheus-logstash-exporter/).
-
-Docker images are available at [Docker Hub](https://hub.docker.com/r/alxrem/prometheus-logstash-exporter/).
-Pull the latest version with
-
-    docker pull alxrem/prometheus-logstash-exporter
+```
+./prometheus-logstash-exporter -h
+```
+- `web.listen-address` exporter listen port
+- `web.telemetry-path` exporter telemetry path
+- `logstash.address` logstash listen host, `localhost:9600`,char ',' split multi logstash host
+- `logstash.timeout` logstash request timeout
+- `logstash.id` logstash metric namespace,char ',' split multi namespace 

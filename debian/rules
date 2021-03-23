@@ -1,8 +1,0 @@
-#!/usr/bin/make -f
-
-%:
-	dh $@ --with=systemd
-
-override_dh_auto_install:
-	mkdir -p debian/prometheus-logstash-exporter/usr/bin/
-	install -m 0755 binaries/prometheus-logstash-exporter-*-linux-amd64 debian/prometheus-logstash-exporter/usr/bin/prometheus-logstash-exporter

@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -28,26 +29,32 @@ import (
 )
 
 const (
-	namespace = "logstash"
+	namespace  = "logstash"
+	defaultTag = "main"
 )
 
 type Exporter struct {
 	nodeStatsUri string
+	logstashId   string
 	timeout      time.Duration
 	up           prometheus.Gauge
 }
 
 type Stats map[string]interface{}
 
-func NewExporter(host string, timeout time.Duration) *Exporter {
+func NewExporter(host string, logstashId string, timeout time.Duration) *Exporter {
+	label := make(map[string]string)
+	label["logstash_id"] = logstashId
 	return &Exporter{
 		nodeStatsUri: fmt.Sprintf("http://%s/_node/stats", host),
+		logstashId:   logstashId,
 		timeout:      timeout,
 		up: prometheus.NewGauge(
 			prometheus.GaugeOpts{
-				Namespace: namespace,
-				Name:      "up",
-				Help:      "Was the last scrape of logstash successful",
+				Namespace:   namespace,
+				Name:        "up",
+				ConstLabels: label,
+				Help:        "Was the last scrape of logstash successful",
 			},
 		),
 	}
@@ -70,7 +77,9 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 func (e *Exporter) collectMetrics(stats *Stats, ch chan<- prometheus.Metric) {
 	for _, k := range []string{"jvm", "events", "process", "reloads"} {
 		if tree, ok := (*stats)[k]; ok {
-			e.collectTree(k, tree, prometheus.Labels{}, ch)
+			labels := make(map[string]string)
+			labels["logstash_id"] = e.logstashId
+			e.collectTree(k, tree, labels, ch)
 		}
 	}
 
@@ -84,6 +93,9 @@ func (e *Exporter) collectMetrics(stats *Stats, ch chan<- prometheus.Metric) {
 }
 
 func (e *Exporter) collectTree(name string, data interface{}, labels prometheus.Labels, ch chan<- prometheus.Metric) {
+	if labels != nil && len(labels) > 0 {
+		labels["logstash_id"] = e.logstashId
+	}
 	if v, ok := parseData(data); ok {
 		if len(labels) == 0 {
 			metric := prometheus.NewUntyped(prometheus.UntypedOpts{
@@ -250,16 +262,27 @@ func (e *Exporter) fetch(uri string) ([]byte, error) {
 
 func main() {
 	var (
-		listenAddress = flag.String("web.listen-address", ":9304", "Address to listen on for web interface and telemetry.")
-		metricsPath   = flag.String("web.telemetry-path", "/metrics", "Path under which to expose metrics.")
-		logstashHost  = flag.String("logstash.host", "localhost", "Host address of logstash server.")
-		logstashPort  = flag.Int("logstash.port", 9600, "Port of logstash server.")
-		timeout       = flag.Duration("logstash.timeout", 5*time.Second, "Timeout to get stats from logstash server.")
+		listenAddress   = flag.String("web.listen-address", ":9304", "Address to listen on for web interface and telemetry.")
+		metricsPath     = flag.String("web.telemetry-path", "/metrics", "Path under which to expose metrics.")
+		logstashAddress = flag.String("logstash.address", "localhost:9600", "logstash server,char ',' split multi logstash server")
+		timeout         = flag.Duration("logstash.timeout", 5*time.Second, "Timeout to get stats from logstash server.")
+		logstashId      = flag.String("logstash.id", "main", "logstash metrics tag,char ',' split multi tags")
 	)
 	flag.Parse()
 
-	exporter := NewExporter(fmt.Sprintf("%s:%d", *logstashHost, *logstashPort), *timeout)
-	prometheus.MustRegister(exporter)
+	logstashAddressArray := strings.Split(*logstashAddress, ",")
+	logstashIdArray := strings.Split(*logstashId, ",")
+	for index, address := range logstashAddressArray {
+		if address == "" {
+			continue
+		}
+		logstashTag := logstashIdArray[index]
+		if logstashTag == "" {
+			logstashTag = defaultTag
+		}
+		exporter := NewExporter(address, logstashTag, *timeout)
+		prometheus.MustRegister(exporter)
+	}
 
 	http.Handle(*metricsPath, promhttp.Handler())
 	http.HandleFunc("/-/ping", func(w http.ResponseWriter, r *http.Request) {})

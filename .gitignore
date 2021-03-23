@@ -3,3 +3,5 @@ prometheus-logstash-exporter
 /venv/
 /vendor/
 /dist/
+
+prometheus-logstash-exporter
